@@ -1,68 +1,101 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# Bulletin Board
 
-## Available Scripts
+A drag-and-drop sticky-note board built with React. Hit **+** to pin a new note to the
+board, drag notes anywhere, and hover a note to reveal its **EDIT** and **X** buttons.
+Notes start out asking "What's in your mind?" and land at a random spot, so the board
+fills up the way a real one does.
 
-In the project directory, you can run:
+Notes live in memory only — reloading the page clears the board.
 
-### `npm start`
+Bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Running with Docker
 
-The page will reload if you make edits.<br>
-You will also see any lint errors in the console.
+The quickest way to start, and it needs nothing installed but Docker:
 
-### `npm test`
+```bash
+docker compose up
+```
 
-Launches the test runner in the interactive watch mode.<br>
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Then open <http://localhost:3000>. Source is bind-mounted, so edits on your host
+hot-reload inside the container.
 
-### `npm run build`
+```bash
+# run the tests
+docker compose run --rm -e CI=true app npm test -- --watchAll=false
 
-Builds the app for production to the `build` folder.<br>
-It correctly bundles React in production mode and optimizes the build for the best performance.
+# production build, served by nginx on http://localhost:8080
+docker compose --profile prod up
+```
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+## Running locally
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Requires **Node 12.x**, the version this project targets. Node 17 and newer will not
+build it — see [Node version](#node-version) below.
 
-### `npm run eject`
+```bash
+npm ci
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### Available scripts
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+| Command | What it does |
+| --- | --- |
+| `npm start` | Dev server on <http://localhost:3000>, reloads on edit |
+| `npm test` | Jest in interactive watch mode |
+| `npm test -- --watchAll=false` | Single test run, for CI |
+| `npm run build` | Production bundle into `build/` |
+| `npm run eject` | Copies CRA's config into the project — **one-way, cannot be undone** |
 
-Instead, it will copy all the configuration files and the transitive dependencies (Webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Lint rules come from the `react-app` ESLint preset bundled with `react-scripts`; there is
+no separate lint command, and warnings appear in the `npm start` and `npm run build` output.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## How it works
 
-## Learn More
+```
+src/
+  index.js              mounts <App> into #react-container
+  App.js                page shell
+  App.css               all styling, keyed off .board / .note selectors
+  components/Board.jsx  owns the notes array, and add/edit/delete
+  components/Note.jsx   owns one note's position and edit mode
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+`Board` holds the note data — an array of `{ id, note }` — and passes its `update` and
+`remove` handlers down to each `Note`.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Each `Note` owns its own appearance: whether it is being edited, and where it sits. Its
+starting position is a random `top`/`right` picked once when the note is created, and
+[react-draggable](https://github.com/react-grid-layout/react-draggable) layers dragging on
+top of that. Because neither the random origin nor the drag offset is reported back up to
+`Board`, positions are not saved anywhere.
 
-### Code Splitting
+Editing a note swaps its display for a textarea, and the new text only reaches `Board`
+when **SAVE** is clicked.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+## Notes on dependencies
 
-### Analyzing the Bundle Size
+Dependencies are intentionally pinned to the versions this project was written against —
+React 16.9 and `react-scripts` 3.1.1. Please don't upgrade them as a drive-by change.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+### Node version
 
-### Making a Progressive Web App
+`react-scripts` 3.1.1 builds with webpack 4, which fails on Node 17 and newer with:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+```
+error:0308010C:digital envelope routines::unsupported
+```
 
-### Advanced Configuration
+Use Node 12 (the LTS this project targets), or sidestep the problem entirely by using the
+Docker setup, which pins `node:12-alpine`.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+### One patched lockfile entry
 
-### Deployment
+`es-abstract@1.14.0`, a transitive dependency of `react-scripts`, was later unpublished
+from the npm registry. That made the original lockfile impossible to install — `npm ci`
+failed with a 404. Its entry is now pinned to `1.14.2`: the nearest available patch, with
+an identical dependency set, satisfying every version range that asks for it.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
-
-### `npm run build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+It is the only such entry; every other pinned version in the lockfile still resolves.
+Don't repair this with `npm install`, which would quietly float the whole transitive tree.

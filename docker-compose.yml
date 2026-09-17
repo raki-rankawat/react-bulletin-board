@@ -1,0 +1,34 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    image: react-bulletin-board:dev
+    container_name: react-bulletin-board
+    ports:
+      - "3000:3000"
+    volumes:
+      # Live-reload the source from the host...
+      - .:/app
+      # ...but keep the node_modules that were installed inside the image,
+      # so the empty host directory does not shadow them.
+      - node_modules:/app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    # CRA's dev server expects a TTY; without these it exits on start.
+    stdin_open: true
+    tty: true
+
+  # Production bundle served by nginx. Opt in with: docker compose --profile prod up
+  prod:
+    build:
+      context: .
+      target: prod
+    image: react-bulletin-board:prod
+    container_name: react-bulletin-board-prod
+    ports:
+      - "8080:80"
+    profiles: ["prod"]
+
+volumes:
+  node_modules:
